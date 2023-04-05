@@ -43,12 +43,56 @@ async function run(){
                     option.slots = remainingSlots;
                     // console.log(date, option.name, bookedSlots);
                     // console.log(remainingSlots);
-
                })
                res.send(optionsData);
-               // console.log(allradyBooked);
+          });
+          // New system useing pipeline and aggrigate 
+          app.get("/v2/appointmentOptionData", async(req, res) => {
+               const date = req.query.date;
+               const potions = await appointmentOptionDataCollection.aggregate([
+                    {
+                         $lookup:{
+                              from: 'bookingData',
+                              localField: 'name',
+                              foreignField: 'treatmentName',
+                              pipeline: [
+                                   {
+                                        $match: {
+                                             $expr: {
+                                                  $eq: ['$selectedDate', date]
+                                             }
+                                        }
+                                   }
+                              ],
+                              as: 'booked'
+                         }
+                    },
+                    {
+                         $project: {
+                              name: 1,
+                              slots: 1,
+                              booked: {
+                                   $map: {
+                                        input: '$booked',
+                                        as: 'book',
+                                        in: '$$book.slot'
+                                   }
+                              }
+                         }
+                    },
+                    {
+                       $project: {
+                         name: 1,
+                         slots: {
+                              $setDifference: ['slots', '$booked']
+                         }
 
+                       }  
+                    }
+               ]).toArray();
+               res.send(potions);
           })
+
 
           // Post bookings data on database
           app.post('/bookingsData', async(req, res) => {
