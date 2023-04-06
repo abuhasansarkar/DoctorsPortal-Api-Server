@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const jwt = require("jsonwebtoken")
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 5000;
 require("dotenv").config();
@@ -15,6 +16,27 @@ const client = new MongoClient(uri, {
   useUnifiedTopology: true,
   serverApi: ServerApiVersion.v1,
 });
+
+
+// Create function, Middleware on JWT 
+function verifyJwtToken(req, res, next){
+     // console.log("JWT token veryfy", req.headers.jwtauthorization);
+     const jwtAuthHeader = req.headers.jwtauthorization;
+     if(!jwtAuthHeader){
+          return res.status(401).send('Unauthorized Access')
+     }
+
+     const jwtToken = jwtAuthHeader.split(' ')[1];
+     jwt.verify(jwtToken, process.env.JWT_ACCESS_TOKEN, (err, decoded) => {
+          if(err){
+               return res.status(403).send({message: 'Forbidden Access'})
+          }
+          req.decoded = decoded;
+          next();
+     })
+}
+
+
 
 async function run() {
   try {
@@ -39,6 +61,7 @@ async function run() {
       .collection("usersData");
 
     // AppointmentOption API Start
+// =========================================
     // Use Aggregate to query multiple collection and then merge data
     app.get("/appointmentOptionData", async (req, res) => {
       const date = req.query.date;
@@ -118,12 +141,21 @@ async function run() {
      
       // AppointmentOption API End
 
-     // BookingsData API Start
-      app.get('/bookingsData', async(req, res) => {
+      // BookingsData API Start
+// ========================================
+
+      app.get('/bookingsData', verifyJwtToken, async(req, res) => {
           const email = req.query.email;
+          // console.log(req.headers.jwtauthorization);
+          // JWT code start
+          const decodedEmail = req.decoded.email;
+          if(!email === decodedEmail){
+               return res.status(403).send({message: 'Forbidden Access'})
+          }
+          // JWT code End 
           const query = {userEmail: email};
           const bookingData = await bookingCollection.find(query).toArray();
-          console.log(bookingData);
+          // console.log(bookingData);
           res.send(bookingData);
       })
           
@@ -151,7 +183,71 @@ async function run() {
     // BookingsData API End
 
     // usersData API Start
+//     ============================
+    // JWT API Start
 
+    app.get('/jwt', async(req, res) => {
+     const email = req.query.email;
+     const query = {email: email};
+     const user = await usersDataCollection.findOne(query);
+     if(user){
+          const jwtToken = jwt.sign({email}, process.env.JWT_ACCESS_TOKEN, {expiresIn: '10h'});
+          return res.send({accesstoken: jwtToken});
+     }
+     console.log(user);
+     res.status(403).send({accessToken: ''})
+    });
+
+     // JWT API End
+     // Get Users Data Start
+
+     app.get('/allusersData', async(req, res) => {
+          const query = {};
+          const users = await usersDataCollection.find(query).toArray();
+          res.send(users)
+     })
+     
+     // Check User isAdmin or not 
+     app.get('/allusersData/admin/:email', async(req, res) => {
+          const email = req.params.email;
+          const query = {email};
+          const user = await usersDataCollection.findOne(query);
+          res.send({isAdmin: user?.role === 'admin'})
+     })
+
+     // Add user role in user database
+     app.put('/allusersData/admin/:id', verifyJwtToken, async(req, res) => {
+          const decodedEmail = req.decoded.email;
+          const query = {email: decodedEmail};
+          const user = await usersDataCollection.findOne(query);
+               if(user.role !== 'admin'){
+                    return res.status(403).send({message: "Unauthorize User"})
+               }
+          const id = req.params.id;
+          const filter = {_id: new ObjectId(id)};
+          const options = { upsert: true };
+          const updatedDoc = {
+               $set: {
+                    role: 'admin'
+               }
+          }
+          const result = await usersDataCollection.updateOne(filter, updatedDoc, options);
+          // console.log(result);
+          res.send(result);
+     });
+
+     // User Delete
+     app.delete('/allusersData/admin/:id', async(req, res) => {
+          const id = req.params.id;
+          const query = {_id: new ObjectId(id)};
+          const result = await usersDataCollection.deleteOne(query);
+          res.send(result);
+          console.log(result);
+     })
+
+
+     // Send Register usersData info to Database 
+     
     app.post('/usersData', async(req, res) => {
      const users = req.body;
      // console.log(users);
@@ -175,3 +271,6 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server is runing on port ${port}`);
 });
+
+
+
