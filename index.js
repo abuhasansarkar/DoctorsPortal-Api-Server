@@ -25,15 +25,20 @@ async function run() {
      *app.patch("/bookings/:id")
      *app.delete("/bookings/:id")
      */
-
+     // Appointment Option caollection
     const appointmentOptionDataCollection = client
       .db("DoctorsPortal")
       .collection("appointmentOptionData");
+     //  Booking collection
     const bookingCollection = client
       .db("DoctorsPortal")
       .collection("bookingData");
+     //  Users
+    const usersDataCollection = client
+      .db("DoctorsPortal")
+      .collection("usersData");
 
-    // AppointmentOption API
+    // AppointmentOption API Start
     // Use Aggregate to query multiple collection and then merge data
     app.get("/appointmentOptionData", async (req, res) => {
       const date = req.query.date;
@@ -63,6 +68,7 @@ async function run() {
       });
       res.send(optionsData);
     });
+
     // New system useing pipeline and aggrigate
     /* app.get("/v2/appointmentOptionData", async(req, res) => {
                const date = req.query.date;
@@ -109,14 +115,27 @@ async function run() {
                ]).toArray();
                res.send(potions);
           }) */
+     
+      // AppointmentOption API End
 
+     // BookingsData API Start
+      app.get('/bookingsData', async(req, res) => {
+          const email = req.query.email;
+          const query = {userEmail: email};
+          const bookingData = await bookingCollection.find(query).toArray();
+          console.log(bookingData);
+          res.send(bookingData);
+      })
+          
     // Post bookings data on database
     app.post("/bookingsData", async (req, res) => {
       const booking = req.body;
-      console.log(booking);
+     //  console.log(booking);
       const query = {
         selectedDate: booking.selectedDate,
         treatmentName: booking.treatmentName,
+        userEmail: booking.userEmail
+
       };
       const allReadyBooked = await bookingCollection.find(query).toArray();
 
@@ -129,13 +148,21 @@ async function run() {
       res.send(result);
     });
 
-    // // Get all bookings data
+    // BookingsData API End
 
-    // app.get('/bookingsData', async(req, res) => {
-    //      const booking = {};
-    //      const bookingData = await bookingCollection.find(booking).toArray;
-    //      res.send(bookingData);
-    // })
+    // usersData API Start
+
+    app.post('/usersData', async(req, res) => {
+     const users = req.body;
+     // console.log(users);
+     const result = await usersDataCollection.insertOne(users);
+     res.send(result);
+
+    })
+
+    // usersData API End
+
+
   } finally {
   }
 }
