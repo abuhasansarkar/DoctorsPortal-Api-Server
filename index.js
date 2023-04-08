@@ -59,6 +59,10 @@ async function run() {
     const usersDataCollection = client
       .db("DoctorsPortal")
       .collection("usersData");
+     //  Doctors Data
+    const doctorsDataCollection = client
+      .db("DoctorsPortal")
+      .collection("doctorsData");
 
     // AppointmentOption API Start
 // =========================================
@@ -91,6 +95,13 @@ async function run() {
       });
       res.send(optionsData);
     });
+
+//   Doctor page infor  Appoinment Specialty Data
+    app.get('/appointmentSpecialty', async(req, res) => {
+     const query = {};
+     const result = await appointmentOptionDataCollection.find(query).project({name: 1}).toArray();
+     res.send(result);
+    })
 
     // New system useing pipeline and aggrigate
     /* app.get("/v2/appointmentOptionData", async(req, res) => {
@@ -242,7 +253,7 @@ async function run() {
           const query = {_id: new ObjectId(id)};
           const result = await usersDataCollection.deleteOne(query);
           res.send(result);
-          console.log(result);
+          // console.log(result);
      })
 
 
@@ -257,6 +268,35 @@ async function run() {
     })
 
     // usersData API End
+
+//     DoctorsData send to Database Start
+     // Post Doctors information API
+    app.post('/doctorsData', async(req, res) => {
+     const doctorsData = req.body;
+     console.log(doctorsData);
+     const result = await doctorsDataCollection.insertOne(doctorsData);
+     res.send(result);
+    })
+
+    //Get Doctors Information API
+    app.get('/doctorsData', async(req, res) => {
+     const query = {};
+     const doctors = await doctorsDataCollection.find(query).toArray();
+     res.send(doctors);
+    })
+
+    //delete Doctor API
+    app.delete('/doctorsData/:id', async(req, res) => {
+     const id = req.params.id;
+     const query = {_id: new ObjectId(id)};
+     const deleteDoctor = await doctorsDataCollection.deleteOne(query);
+     res.send(deleteDoctor);
+     console.log(deleteDoctor);
+    })
+
+
+//     DoctorsData send to Database End
+
 
 
   } finally {
