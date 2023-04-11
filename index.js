@@ -5,10 +5,12 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 5000;
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_KEY_SK);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static("public"));
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@simpledb.jrt478f.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, {
@@ -60,6 +62,10 @@ async function run() {
     const doctorsDataCollection = client
       .db("DoctorsPortal")
       .collection("doctorsData");
+    //  Payments Data
+    const paymentsCollection = client
+      .db("DoctorsPortal")
+      .collection("payments");
 
     //  Admin Middleware
     // ==================================
@@ -203,18 +209,35 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/bookingsData/:id', async(req, res) => {
-     const id = req.params.id;
-     const filter = {_id: new ObjectId(id)};
-     const result = await bookingCollection.findOne(filter);
-     res.send(result);
-     console.log(result);
-    })
+    app.get("/bookingsData/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await bookingCollection.findOne(filter);
+      res.send(result);
+      // console.log(result);
+    });
 
     // BookingsData API End
 
+    // Stripte Payments API Start
+    app.post('/create-payment-intent', async (req, res) => {
+      const booking = req.body;
+      const price = booking.price;
+      const totalAmount = price * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: totalAmount,
+        currency: "usd",
+        payment_method_types : ["card"]
+        
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+    // Stripte Payments API End
+
     // usersData API Start
-    //     ============================
+    // ============================
     // JWT API Start
 
     app.get("/jwt", async (req, res) => {
@@ -227,7 +250,7 @@ async function run() {
         });
         return res.send({ accesstoken: jwtToken });
       }
-      console.log(user);
+      // console.log(user);
       res.status(403).send({ accessToken: "" });
     });
 
@@ -254,7 +277,7 @@ async function run() {
       verifyJwtToken,
       virifyAdmin,
       async (req, res) => {
-       /*  const decodedEmail = req.decoded.email;
+        /*  const decodedEmail = req.decoded.email;
         const query = {email: decodedEmail};
         const user = await usersDataCollection.findOne(query);
              if(user.role !== 'admin'){
@@ -302,7 +325,7 @@ async function run() {
     // Post Doctors information API
     app.post("/doctorsData", async (req, res) => {
       const doctorsData = req.body;
-      console.log(doctorsData);
+      // console.log(doctorsData);
       const result = await doctorsDataCollection.insertOne(doctorsData);
       res.send(result);
     });
@@ -327,6 +350,27 @@ async function run() {
         // console.log(deleteDoctor);
       }
     );
+
+    // Payments API  Start
+    // ===================================
+
+    app.post('/payments', async(req, res) => {
+      const payment = req.body;
+      const paymentsInfo = await paymentsCollection.insertOne(payment);
+      const id = payment.bookingId;
+      const filter = {_id: new ObjectId(id)}
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId
+        }
+      }
+      const result = await bookingCollection.updateOne(filter, updatedDoc)
+      res.send(paymentsInfo);
+      // console.log(result);
+    })
+    // Payments API End
+
 
     //     Temporary Price Data update in appointmentOptinsData colection
 
